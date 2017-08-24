@@ -1,0 +1,17 @@
+Parameters:
+  UseCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Allowed Values:
+      - 10.0.0.0/24
+      - 10.0.0.0/28
+    Description: Select a Cidr Block
+Resources:
+  myNewVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref UseCidrBlock
+      InstanceTenancy: default
+      Tags:
+      - Key: Name
+      - Value: myNewVPC
