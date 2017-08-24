@@ -1,17 +1,105 @@
 Parameters:
-  UseCidrBlock:
+  MyCidr:
     Type: String
     Default: 10.0.0.0/16
-    Allowed Values:
+    AllowedValues:
+      - 10.0.0.0/16
       - 10.0.0.0/24
-      - 10.0.0.0/28
     Description: Select a Cidr Block
-Resources:
-  myNewVPC:
+Resources:              # Create a new VPC
+  VPC1:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref UseCidrBlock
+      CidrBlock: !Ref MyCidr
       InstanceTenancy: default
       Tags:
       - Key: Name
-      - Value: myNewVPC
+        Value: myNewVPC
+  InstanceSecurityGroup1:   # Create Security Group with http & ssh access
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http and ssh to client host
+      GroupName: SG1
+      VpcId:
+        Ref: VPC1
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+  Subnet1:              # Create a subnet in the first AZ - this will be public
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC1
+      CidrBlock: 10.0.1.0/28
+      MapPublicIpOnLaunch: True
+      AvailabilityZone:
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: ''
+      Tags:
+        - Key: Name
+          Value: Subnet-1A
+  Subnet2:              # Create a subnet in the second AZ
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC1
+      CidrBlock: 10.0.2.0/28
+      AvailabilityZone:
+        Fn::Select:
+        - 1
+        - Fn::GetAZs: ''
+      Tags:
+        - Key: Name
+          Value: Subnet-2B
+  InternetGateway:       # Create an internet gateway
+    Type: AWS::EC2::InternetGateway
+  AttachInternetGateway: # Attach internet gateway to the VPC
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC1
+  PublicRouteTable:      # Create a new route table for public access
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC1
+  PublicRoute:           # Adds a route to the internet via the internet gateway
+    Type: AWS::EC2::Route
+    DependsOn: AttachInternetGateway
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+  PublicSubnetRouteTableAssociation:  # Associate public subnet with public route table
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: Subnet1
+      RouteTableId:
+        Ref: PublicRouteTable
+  EC2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-489f8e2c
+      KeyName: 007KEYPAIR
+      InstanceType: t2.micro
